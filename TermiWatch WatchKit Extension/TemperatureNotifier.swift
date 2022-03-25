@@ -27,16 +27,27 @@ let disabledCachingConfig: (URLSessionConfiguration) -> Void = {
   $0.urlCache = nil
 }
 
+struct Weather: Codable {
+  let main: String
+  let description: String
+}
+
 struct OpenWeatherMapResponse: Codable {
   struct MainResponse: Codable {
     let temp: Double
   }
-
+ 
   let main: MainResponse
+  let weather: [Weather]
+}
+
+public struct WeatherInfo {
+  var weather: Weather?
+  var temperature: Measurement<UnitTemperature>
 }
 
 func temperatureInKelvin(at coordinate: CLLocationCoordinate2D)
-  -> Promise<Measurement<UnitTemperature>> {
+  -> Promise<WeatherInfo> {
   return Promise { seal in
     let sessionConfig = URLSessionConfiguration.default
     disabledCachingConfig(sessionConfig)
@@ -52,7 +63,11 @@ func temperatureInKelvin(at coordinate: CLLocationCoordinate2D)
         unit: UnitTemperature.kelvin
       )
 
-      seal.fulfill(temperatureInKelvin)
+      let weatherInfo = WeatherInfo(
+        weather: $0.weather.first,
+        temperature: temperatureInKelvin
+      )
+      seal.fulfill(weatherInfo)
     }.catch {
       print("Error:", $0)
     }
@@ -67,7 +82,7 @@ public class TemperatureNotifier {
   public static let shared = TemperatureNotifier()
   private init() {}
 
-  public private(set) var temperature: Measurement<UnitTemperature>?
+  public private(set) var weatherInfo: WeatherInfo?
   private var timer: Timer?
 
   public var isStarted: Bool {
@@ -82,16 +97,15 @@ public class TemperatureNotifier {
       CLLocationManager.requestLocation().lastValue.then {
         temperatureInKelvin(at: $0.coordinate)
       }.done { currentTemperature in
-        if currentTemperature == self?.temperature {
+          if currentTemperature.temperature == self?.weatherInfo?.temperature {
           return
         }
-
-        self?.temperature = currentTemperature
+        self?.weatherInfo = currentTemperature
 
         NotificationCenter.default.post(
           Notification(
             name: TemperatureNotifier.TemperatureDidChangeNotification,
-            object: self?.temperature,
+            object: self?.weatherInfo,
             userInfo: nil
           )
         )

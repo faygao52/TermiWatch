@@ -210,9 +210,10 @@ class InterfaceController: WKInterfaceController {
         object: nil,
         queue: nil
       ) { [weak self] notification in
-        let temperature = notification.object as! Measurement<UnitTemperature>
+        let weatherInfo = notification.object as! WeatherInfo
+        let weatherDescription = weatherInfo.weather?.main
         self?.temperatureLabel.setText(
-          temperatureFormatter.string(from: temperature)
+            temperatureFormatter.string(from: weatherInfo.temperature) + ((weatherDescription != nil) ? " / " + weatherDescription! : "")
         )
       }
 
